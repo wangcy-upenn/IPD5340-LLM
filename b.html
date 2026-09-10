@@ -1,0 +1,272 @@
+<meta charset="utf-8">
+<title>Which One</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --sign:#2A2D63; --amber:#F2B233; --chip:#4A5058; --line:#1D212A;
+    --surface:#12161C;
+    /* Reserved status palette - never reused for anything decorative.
+       Each one always ships with a written label, never colour alone. */
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --ink:#FFFFFF; --ink2:#98A2B0; --ink3:#66707E;
+  }
+  *{ box-sizing:border-box; margin:0; }
+  html,body{ height:100%; }
+  body{ background:#0A0A0B; color:var(--ink); font-family:"Barlow",system-ui,sans-serif;
+        display:flex; justify-content:center; overflow:hidden;
+        -webkit-font-smoothing:antialiased; user-select:none; -webkit-user-select:none; }
+  #unit{ width:100%; max-width:540px; height:100%; display:flex; flex-direction:column;
+         background:#000; }
+
+  .bar{ flex:0 0 auto; display:flex; align-items:center; gap:11px;
+        background:var(--sign); padding:clamp(7px,1.2vh,12px) clamp(12px,3vw,19px); }
+  .bar .nm{ font-family:"Barlow Condensed",sans-serif; font-weight:600; color:#D6D8F0;
+            font-size:clamp(13px,1.8vh,17px); letter-spacing:.13em; text-transform:uppercase; }
+  .bar .lv{ margin-left:auto; font-family:"Barlow Condensed",sans-serif; font-weight:600;
+            color:#8E92C9; font-size:clamp(9px,1.2vh,11.5px);
+            letter-spacing:.13em; text-transform:uppercase; }
+  .bar .lv.on{ color:#7BE0A0; }
+
+  /* The advice, in words. Everything below it is the evidence. */
+  .call{ flex:0 0 auto; padding:clamp(11px,2vh,19px) clamp(13px,3.4vw,21px) clamp(9px,1.6vh,15px); }
+  .call .q{ font-family:"Barlow Condensed",sans-serif; font-weight:600; color:var(--ink3);
+            font-size:clamp(10px,1.4vh,13px); letter-spacing:.19em; text-transform:uppercase; }
+  .call .a{ margin-top:clamp(3px,.6vh,7px); font-family:"Barlow Condensed",sans-serif;
+            font-weight:700; line-height:.96; font-size:clamp(27px,4.8vh,46px); }
+  .call .a b{ color:var(--amber); font-weight:700; }
+  .call .a i{ font-style:normal; color:var(--good); }
+  .call .why{ margin-top:clamp(4px,.8vh,9px); color:var(--ink2);
+              font-size:clamp(12px,1.7vh,15.5px); line-height:1.35; }
+
+  .list{ flex:1 1 auto; min-height:0; overflow:hidden; display:flex; flex-direction:column; justify-content:center;
+         margin:0 clamp(9px,2.4vw,14px) clamp(6px,1.1vh,10px);
+         background:var(--surface); border-radius:10px;
+         padding:clamp(4px,.8vh,9px) clamp(10px,2.6vw,15px); }
+
+  .b{ flex:1 1 0; min-height:0; max-height:clamp(64px,13vh,120px);
+      display:flex; align-items:center; gap:clamp(8px,2.2vw,13px);
+      padding:clamp(6px,1.2vh,11px) 0; border-bottom:1px solid var(--line); }
+  .b:last-child{ border-bottom:0; }
+  .b .chip{ flex:0 0 auto; min-width:clamp(34px,5vw,44px); text-align:center;
+            padding:clamp(1px,.4vh,4px) 7px; border-radius:5px; background:var(--chip);
+            font-family:"Barlow Condensed",sans-serif; font-weight:700;
+            font-size:clamp(16px,2.2vh,21px); line-height:1.2; }
+  .b .mid{ flex:1 1 auto; min-width:0; }
+  .b .dest{ font-weight:600; font-size:clamp(12.5px,1.7vh,16px);
+            white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .b .seat{ margin-top:2px; display:flex; align-items:center; gap:6px; }
+  /* Four-step meter on one track. The filled steps are the magnitude; the
+     colour and the word beside it are the state. */
+  .b .meter{ flex:0 0 auto; display:flex; gap:2px; }
+  .b .meter i{ display:block; width:clamp(9px,2.2vw,14px); height:6px; border-radius:2px;
+               background:#2A313C; }
+  .b .lbl{ font-family:"Barlow Condensed",sans-serif; font-weight:700;
+           font-size:clamp(10px,1.4vh,13px); letter-spacing:.11em; text-transform:uppercase; }
+  .b.s-seats    .meter i.on{ background:var(--good); }     .b.s-seats    .lbl{ color:var(--good); }
+  .b.s-few      .meter i.on{ background:var(--warning); }  .b.s-few      .lbl{ color:var(--warning); }
+  .b.s-standing .meter i.on{ background:var(--serious); }  .b.s-standing .lbl{ color:var(--serious); }
+  .b.s-full     .meter i.on{ background:var(--critical); } .b.s-full     .lbl{ color:var(--critical); }
+  .b.s-unknown  .lbl{ color:var(--ink3); }
+  .b .eta{ flex:0 0 auto; text-align:right; min-width:clamp(50px,8vw,66px); }
+  .b .eta .n{ font-family:"Barlow Condensed",sans-serif; font-weight:700; color:var(--amber);
+              font-size:clamp(23px,3.4vh,33px); line-height:.95; font-variant-numeric:tabular-nums; }
+  .b .eta .u{ font-family:"Barlow Condensed",sans-serif; font-weight:500; color:var(--amber);
+              opacity:.75; font-size:clamp(9.5px,1.2vh,11.5px);
+              letter-spacing:.1em; text-transform:uppercase; }
+  .b .late{ display:inline-block; background:var(--critical); color:#fff;
+            border-radius:999px; padding:0 6px; font-family:"Barlow Condensed",sans-serif;
+            font-weight:700; font-size:clamp(9px,1.2vh,11px); letter-spacing:.06em; }
+  /* The one we are recommending, marked by more than colour. */
+  .b.pick{ background:rgba(12,163,12,.09); border-radius:8px;
+           padding-left:clamp(6px,1.6vw,10px); padding-right:clamp(6px,1.6vw,10px);
+           box-shadow:inset 3px 0 0 var(--good); }
+
+  .empty{ padding:clamp(16px,3vh,26px) 4px; color:var(--ink3);
+          font-size:clamp(12px,1.6vh,15px); line-height:1.45; }
+
+  .foot{ flex:0 0 auto; display:flex; justify-content:space-between; gap:12px;
+         padding:0 clamp(12px,3vw,18px) clamp(7px,1.2vh,12px);
+         font-family:"Barlow Condensed",sans-serif; letter-spacing:.14em; text-transform:uppercase;
+         font-size:clamp(9px,1.2vh,11.5px); color:#4E545D; }
+</style>
+
+<div id="unit">
+  <div class="bar">
+    <div class="nm">Walnut St &middot; 11th St</div>
+    <div class="lv" id="lv">&#9675; connecting</div>
+  </div>
+
+  <div class="call">
+    <div class="q">Which one should you get on?</div>
+    <div class="a" id="a">Checking</div>
+    <div class="why" id="why">Reading live crowding from SEPTA.</div>
+  </div>
+
+  <div class="list" id="list"></div>
+
+  <div class="foot">
+    <span>Crowding reported by SEPTA per vehicle</span>
+    <span>Prototype &middot; UPenn course</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+
+  // SEPTA's own vocabulary, collapsed by the serverless function into these
+  // five states. Lower rank is roomier; "unknown" has no rank on purpose, so a
+  // bus SEPTA is silent about is never recommended as the comfortable one.
+  var RANK  = { seats:0, few:1, standing:2, full:3 };
+  var STEPS = { seats:1, few:2, standing:3, full:4, unknown:0 };
+  var WORD  = { seats:"Seats free", few:"Few seats", standing:"Standing only",
+                full:"Full", unknown:"No crowding data" };
+
+  // How much longer it is worth waiting to get a seat. A judgement, written
+  // down where it can be argued with rather than buried in the layout.
+  var WORTH_WAITING = 12;
+
+  var POLL_MS = 20000, DEMO_MIN_MS = 2000, REAL_MIN_MS = 60000;
+  var board = [], live = false, demoSpeed = false, tickHandle = null, fake = 0;
+
+  function seed(){
+    return [
+      { route:"21", minutes:3,  destination:"69th St Transit Center", seats:"standing", late:0 },
+      { route:"42", minutes:9,  destination:"Wycombe",                seats:"seats",    late:0 },
+      { route:"12", minutes:14, destination:"50th-Woodland",          seats:"few",      late:3 },
+      { route:"9",  minutes:19, destination:"Andorra",                seats:"seats",    late:0 }
+    ];
+  }
+  board = seed();
+
+  function rowHTML(b, pick){
+    var st = b.seats || "unknown";
+    var steps = "";
+    for(var i = 1; i <= 4; i++) steps += "<i class='" + (i <= STEPS[st] ? "on" : "") + "'></i>";
+    var late = (typeof b.late === "number" && b.late >= 2)
+      ? "<span class='late'>" + b.late + " min late</span>" : "";
+    return "<div class='b s-" + st + (pick ? " pick" : "") + "'>" +
+      "<div class='chip'>" + b.route + "</div>" +
+      "<div class='mid'><div class='dest'>" + (b.destination || "") + "</div>" +
+      "<div class='seat'><span class='meter'>" + steps + "</span>" +
+      "<span class='lbl'>" + WORD[st] + "</span>" + late + "</div></div>" +
+      "<div class='eta'><div class='n'>" + b.minutes + "</div>" +
+      "<div class='u'>min</div></div></div>";
+  }
+
+  // The recommendation. Four branches, all readable out loud.
+  function advise(){
+    if(!board.length){
+      return { pick:-1, a:"No bus is being tracked",
+               why:"SEPTA is not reporting a vehicle heading this way right now." };
+    }
+    var first = board[0];
+    var fr = RANK[first.seats];
+
+    if(fr === undefined){
+      return { pick:0, a:"Take the <b>" + first.route + "</b>",
+               why:"It is next, in " + first.minutes +
+                    " min. SEPTA is not reporting crowding for it." };
+    }
+    if(fr <= 0){
+      return { pick:0, a:"Take the <b>" + first.route + "</b>",
+               why:"It is next, in " + first.minutes + " min, and it has seats." };
+    }
+
+    // Is a roomier bus close enough behind to be worth the extra wait?
+    var best = null;
+    for(var i = 1; i < board.length; i++){
+      var r = RANK[board[i].seats];
+      if(r === undefined || r >= fr) continue;
+      var extra = board[i].minutes - first.minutes;
+      if(extra > WORTH_WAITING) continue;
+      if(!best || r < RANK[best.seats] ||
+         (r === RANK[best.seats] && board[i].minutes < best.minutes)){
+        best = board[i]; best.__i = i;
+      }
+    }
+
+    if(best){
+      var extra = best.minutes - first.minutes;
+      return {
+        pick: best.__i,
+        a: "Wait for the <i>" + best.route + "</i>",
+        why: "The " + first.route + " is here in " + first.minutes + " min but it is " +
+             WORD[first.seats].toLowerCase() + ". " + extra + " minutes later the " +
+             best.route + " comes with " + (RANK[best.seats] === 0 ? "seats" : "more room") + "."
+      };
+    }
+
+    return { pick:0, a:"Take the <b>" + first.route + "</b>",
+             why:"It is next, in " + first.minutes +
+                  " min. Nothing behind it is any roomier." };
+  }
+
+  function draw(){
+    var d = advise();
+    $("a").innerHTML = d.a;
+    $("why").textContent = d.why;
+    var html = "";
+    if(!board.length){
+      html = "<div class='empty'>Nothing approaching this stop right now. " +
+             "Late at night the screen says so rather than inventing a bus.</div>";
+    } else {
+      board.forEach(function(b, i){ html += rowHTML(b, i === d.pick); });
+    }
+    $("list").innerHTML = html;
+  }
+
+  function setLive(on, label){
+    live = on;
+    var e = $("lv");
+    e.className = "lv" + (on ? " on" : "");
+    e.innerHTML = on ? "\u25CF LIVE" : "\u25CB " + (label || "OFFLINE");
+  }
+
+  function tick(){
+    var gone = false;
+    board.forEach(function(b){ b.minutes--; if(b.minutes <= 0) gone = true; });
+    if(gone) board = board.filter(function(b){ return b.minutes > 0; });
+    draw();
+  }
+  function tickMs(){ return (live && !demoSpeed) ? REAL_MIN_MS : DEMO_MIN_MS; }
+  function restartTick(){ clearInterval(tickHandle); tickHandle = setInterval(tick, tickMs()); }
+
+  // Same serverless function as A and C - this page reads the `board` array,
+  // which lists every approaching vehicle rather than one per route.
+  function poll(){
+    fetch("/api/septa", { cache:"no-store" })
+      .then(function(res){ if(!res.ok) throw new Error(res.status); return res.json(); })
+      .then(function(d){
+        if(!Array.isArray(d.board)) throw new Error("no board");
+        board = d.board;
+        setLive(true);
+      })
+      .catch(function(){ setLive(false, "demo data"); })
+      .then(function(){ draw(); restartTick(); setTimeout(poll, POLL_MS); });
+  }
+
+  draw(); restartTick(); poll();
+
+  // Recording helpers:
+  //   d = demo speed   s = cycle the crowding story   r = reset
+  document.addEventListener("keydown", function(e){
+    if(e.key === "d"){ demoSpeed = !demoSpeed; restartTick(); }
+    if(e.key === "r"){ board = seed(); draw(); }
+    if(e.key === "s"){
+      // Steps through the three verdicts so all of them can be filmed without
+      // waiting for a crowded bus to turn up.
+      fake = (fake + 1) % 3;
+      board = seed();
+      if(fake === 1){ board[0].seats = "seats"; }
+      else if(fake === 2){
+        board[0].seats = "full"; board[1].seats = "standing";
+        board[2].seats = "standing"; board[3].seats = "standing";
+      }
+      draw();
+    }
+  });
+})();
+</script>
