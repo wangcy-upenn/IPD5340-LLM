@@ -1,0 +1,383 @@
+<meta charset="utf-8">
+<title>Wait or Walk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --sign:#2A2D63; --amber:#F2B233; --red:#E33B3B; --chip:#4A5058;
+    --surface:#12161C;              /* chart surface - the palette is validated against this */
+    --rain:#3987e5;                 /* emphasis: hours we call wet */
+    --dry:#5F6E86;                  /* de-emphasis: hours we do not */
+    --ink:#FFFFFF; --ink2:#98A2B0; --ink3:#66707E;
+    --go:#5BD6A0;
+  }
+  *{ box-sizing:border-box; margin:0; }
+  html,body{ height:100%; }
+  body{ background:#0A0A0B; color:var(--ink); font-family:"Barlow",system-ui,sans-serif;
+        display:flex; justify-content:center; overflow:hidden;
+        -webkit-font-smoothing:antialiased; user-select:none; -webkit-user-select:none; }
+  #unit{ width:100%; max-width:540px; height:100%; display:flex; flex-direction:column;
+         background:#000; }
+
+  .bar{ flex:0 0 auto; display:flex; align-items:center; gap:clamp(7px,1.8vw,11px);
+        background:var(--sign); padding:clamp(6px,1.1vh,11px) clamp(11px,3vw,18px); }
+  .bar .lbl{ font-family:"Barlow Condensed",sans-serif; font-weight:600; color:#9FA3D8;
+             font-size:clamp(9.5px,1.3vh,12px); letter-spacing:.15em; text-transform:uppercase; }
+  .bar .chip{ background:var(--chip); border-radius:5px; padding:1px 8px;
+              font-family:"Barlow Condensed",sans-serif; font-weight:700;
+              font-size:clamp(15px,2vh,20px); line-height:1.2; }
+  .bar .dest{ flex:1 1 auto; min-width:0; font-weight:600; font-size:clamp(12px,1.6vh,15px);
+              white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:#D6D8F0; }
+  .bar .delay{ display:none; background:var(--red); border-radius:999px; padding:1px 8px;
+               font-family:"Barlow Condensed",sans-serif; font-weight:700;
+               font-size:clamp(9.5px,1.3vh,12px); letter-spacing:.07em; text-transform:uppercase; }
+  body.late .bar .delay{ display:block; }
+  .bar .mins{ font-family:"Barlow Condensed",sans-serif; font-weight:700; color:var(--amber);
+              font-size:clamp(17px,2.4vh,23px); font-variant-numeric:tabular-nums; }
+  .bar .lv{ font-family:"Barlow Condensed",sans-serif; font-weight:600; color:#8E92C9;
+            font-size:clamp(9px,1.2vh,11px); letter-spacing:.13em; text-transform:uppercase; }
+  .bar .lv.on{ color:#7BE0A0; }
+
+  /* Current conditions - context for the verdict, not the verdict itself. */
+  .wx{ flex:0 0 auto; display:flex; align-items:baseline; gap:clamp(9px,2.4vw,15px);
+       padding:clamp(10px,1.9vh,18px) clamp(13px,3.4vw,21px) clamp(4px,.8vh,8px); }
+  .wx .t{ font-family:"Barlow Condensed",sans-serif; font-weight:700;
+          font-size:clamp(30px,5vh,46px); line-height:.9; }
+  .wx .t sup{ font-size:.44em; vertical-align:super; color:var(--ink2); }
+  .wx .cond{ flex:1 1 auto; min-width:0; color:var(--ink2);
+             font-size:clamp(12.5px,1.7vh,16px); line-height:1.25; }
+  .wx .wind{ color:var(--ink3); font-family:"Barlow Condensed",sans-serif; font-weight:600;
+             font-size:clamp(10px,1.3vh,12.5px); letter-spacing:.12em; text-transform:uppercase; }
+
+  /* The verdict is the whole point of this screen: one word, then why. */
+  .verdict{ flex:1 1 auto; min-height:0; display:flex; flex-direction:column; justify-content:center; padding:clamp(6px,1.1vh,11px) clamp(13px,3.4vw,21px) clamp(10px,1.9vh,18px); }
+  .verdict .v{ font-family:"Barlow Condensed",sans-serif; font-weight:700; line-height:.9;
+               font-size:clamp(52px,10vh,96px); letter-spacing:-.005em; color:var(--go); }
+  .verdict .why{ margin-top:clamp(5px,1vh,10px); color:var(--ink2);
+                 font-size:clamp(12.5px,1.8vh,16.5px); line-height:1.4; max-width:34em; }
+  .verdict .why b{ color:var(--ink); font-weight:600; }
+  body.v-walk .verdict .v{ color:var(--rain); }
+  body.v-cover .verdict .v{ color:var(--amber); }
+
+  /* Hourly chance of rain. One series, so no legend - the caption names it.
+     Height carries magnitude; colour carries only wet-vs-dry. */
+  .chart{ flex:0 0 auto; height:clamp(140px,24vh,210px); display:flex; flex-direction:column;
+          background:var(--surface); border-radius:10px;
+          margin:0 clamp(9px,2.4vw,14px) clamp(6px,1.1vh,10px);
+          padding:clamp(9px,1.7vh,16px) clamp(11px,3vw,17px) clamp(7px,1.3vh,13px); }
+  .chart .cap{ flex:0 0 auto; display:flex; justify-content:space-between; align-items:baseline;
+               gap:10px; font-family:"Barlow Condensed",sans-serif; font-weight:600;
+               font-size:clamp(9.5px,1.3vh,12px); letter-spacing:.14em;
+               text-transform:uppercase; color:var(--ink3); }
+  .plot{ flex:1 1 auto; min-height:0; position:relative;
+         margin-top:clamp(7px,1.3vh,13px); display:flex; align-items:flex-end;
+         gap:2px; }                                  /* 2px surface gap between bars */
+  .col{ flex:1 1 0; min-width:0; height:100%; display:flex; flex-direction:column;
+        justify-content:flex-end; align-items:center; position:relative; }
+  .col .fill{ width:100%; background:var(--dry); border-radius:4px 4px 0 0;
+              transition:height .6s ease, background .3s ease; }
+  .col.wet .fill{ background:var(--rain); }
+  .col .pct{ position:absolute; left:0; right:0; text-align:center; color:var(--ink);
+             font-family:"Barlow Condensed",sans-serif; font-weight:700;
+             font-size:clamp(11px,1.5vh,14px); }
+  /* Threshold rule - recessive, and labelled so the colour split is explainable. */
+  .rule{ position:absolute; left:0; right:0; border-top:1px dashed #2C3542; }
+  .hours{ flex:0 0 auto; display:flex; gap:2px; margin-top:5px; }
+  .hours div{ flex:1 1 0; text-align:center; color:var(--ink3);
+              font-family:"Barlow Condensed",sans-serif; font-weight:600;
+              font-size:clamp(9px,1.2vh,11px); letter-spacing:.06em; }
+
+  .foot{ flex:0 0 auto; display:flex; justify-content:space-between; gap:12px;
+         padding:0 clamp(12px,3vw,18px) clamp(7px,1.2vh,12px);
+         font-family:"Barlow Condensed",sans-serif; letter-spacing:.14em; text-transform:uppercase;
+         font-size:clamp(9px,1.2vh,11.5px); color:#4E545D; }
+</style>
+
+<div id="unit">
+  <div class="bar">
+    <span class="lbl">Next</span>
+    <span class="chip" id="chip">21</span>
+    <span class="dest" id="dest">69th St Transit Center</span>
+    <span class="delay" id="delay">Delayed 4 min</span>
+    <span class="mins" id="mins">12</span>
+    <span class="lbl">min</span>
+    <span class="lv" id="lv">&#9675;</span>
+  </div>
+
+  <div class="wx">
+    <div class="t" id="temp">--<sup>&deg;F</sup></div>
+    <div class="cond" id="cond">Loading conditions</div>
+    <div class="wind" id="wind"></div>
+  </div>
+
+  <div class="verdict">
+    <div class="v" id="v">WAIT</div>
+    <div class="why" id="why">Checking the bus and the sky.</div>
+  </div>
+
+  <div class="chart">
+    <div class="cap">
+      <span>Chance of rain, next 8 hours</span>
+      <span id="src">Blue = 40%+</span>
+    </div>
+    <div class="plot" id="plot"><div class="rule" id="rule"></div></div>
+    <div class="hours" id="hours"></div>
+  </div>
+
+  <div class="foot">
+    <span>SEPTA + National Weather Service</span>
+    <span>Prototype &middot; UPenn course</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $ = function(id){ return document.getElementById(id); };
+
+  var ROUTES = ["9", "12", "21", "42"];
+  var SEED = { "9":16, "12":9, "21":12, "42":7 };
+  var eta = { "9":16, "12":9, "21":12, "42":7 };
+  var lateMin = { "9":null, "12":null, "21":null, "42":null };
+  var dest = { "9":"Andorra", "12":"50th-Woodland",
+               "21":"69th St Transit Center", "42":"Wycombe" };
+  var tracked = { "9":true, "12":true, "21":true, "42":true };
+
+  // Indoors, and close enough to be a real alternative to standing here.
+  // Walk times come from the same grid rule as prototypes A and B.
+  var INDOOR = [ { nm:"Jefferson Station", walk:6 }, { nm:"Reading Terminal", walk:7 } ];
+
+  var wx = null, wxOk = false;
+  var live = false, demoSpeed = false, tickHandle = null;
+  var POLL_MS = 20000, WX_MS = 300000, DEMO_MIN_MS = 2000, REAL_MIN_MS = 60000;
+  var THRESH = 40;
+
+  function soonest(){
+    var best = null;
+    ROUTES.forEach(function(r){
+      if(!tracked[r]) return;
+      if(best === null || eta[r] < eta[best]) best = r;
+    });
+    return best;
+  }
+
+  function hourLabel(iso){
+    var d = new Date(iso), h = d.getHours();
+    var ap = h < 12 ? "A" : "P";
+    h = h % 12; if(h === 0) h = 12;
+    return h + ap;
+  }
+
+  // ---- the chart -----------------------------------------------------------
+  function drawChart(){
+    var plot = $("plot"), hours = $("hours");
+    Array.prototype.slice.call(plot.querySelectorAll(".col")).forEach(function(n){ n.remove(); });
+    hours.innerHTML = "";
+    if(!wxOk || !wx || !wx.periods || !wx.periods.length){ $("rule").style.display = "none"; return; }
+    $("rule").style.display = "";
+    $("rule").style.bottom = THRESH + "%";
+
+    // Label only the hours that carry the message: the first wet hour and the
+    // peak. A number on every bar would bury both.
+    var first = -1, peak = 0, peakI = -1;
+    wx.periods.forEach(function(p, i){
+      if(first < 0 && p.pop >= THRESH) first = i;
+      if(p.pop > peak){ peak = p.pop; peakI = i; }
+    });
+
+    wx.periods.forEach(function(p, i){
+      var col = document.createElement("div");
+      col.className = "col" + (p.pop >= THRESH ? " wet" : "");
+      var fill = document.createElement("div");
+      fill.className = "fill";
+      // A floor of 2% keeps a 0% hour visible as a baseline tick.
+      fill.style.height = Math.max(2, p.pop) + "%";
+      if(i === first || (i === peakI && peak > 0)){
+        var t = document.createElement("div");
+        t.className = "pct";
+        t.textContent = p.pop + "%";
+        t.style.bottom = "calc(" + Math.max(2, p.pop) + "% + 3px)";
+        col.appendChild(t);
+      }
+      col.appendChild(fill);
+      plot.appendChild(col);
+
+      var h = document.createElement("div");
+      h.textContent = (i % 2 === 0) ? hourLabel(p.start) : "";
+      hours.appendChild(h);
+    });
+  }
+
+  // ---- the verdict ---------------------------------------------------------
+  // Deliberately hard code. Three states, and every branch can be read aloud
+  // and argued with - none of it is a model's guess.
+  function decide(){
+    var r = soonest();
+    var bus = r === null ? null : eta[r];
+    document.body.classList.remove("v-walk", "v-cover");
+
+    if(r === null){
+      $("chip").textContent = "--"; $("mins").textContent = "--";
+      $("dest").textContent = "No bus being tracked";
+    } else {
+      $("chip").textContent = r;
+      $("mins").textContent = bus;
+      $("dest").textContent = dest[r] || "";
+      var lm = lateMin[r];
+      document.body.classList.toggle("late", typeof lm === "number" && lm >= 2);
+      if(typeof lm === "number" && lm >= 2) $("delay").textContent = "Delayed " + lm + " min";
+    }
+
+    if(!wxOk){
+      $("v").textContent = "WAIT";
+      $("why").innerHTML = r === null
+        ? "No vehicle reported and no forecast. Check the printed timetable."
+        : "The <b>" + r + "</b> is <b>" + bus + " min</b> away. Weather is offline.";
+      return;
+    }
+
+    var rainIn = wx.rainInMinutes;   // null when the next 8 hours look dry
+
+    if(wx.nowRaining){
+      document.body.classList.add("v-cover");
+      $("v").textContent = "COVER";
+      $("why").innerHTML = r === null
+        ? "It is raining and no bus is being tracked. <b>" + INDOOR[0].nm +
+          "</b> is " + INDOOR[0].walk + " min away and indoors."
+        : "It is raining. The <b>" + r + "</b> is <b>" + bus +
+          " min</b> away - stand back under the canopy.";
+      return;
+    }
+
+    // Walk only when you could actually beat the rain to somewhere indoors,
+    // and the bus would not have got you out of here first.
+    if(rainIn !== null && r !== null && rainIn < bus){
+      var pick = null;
+      for(var i = 0; i < INDOOR.length; i++){
+        if(INDOOR[i].walk < rainIn){ pick = INDOOR[i]; break; }
+      }
+      if(pick){
+        document.body.classList.add("v-walk");
+        $("v").textContent = "WALK";
+        $("why").innerHTML = "Rain in <b>" + rainIn + " min</b>, but the <b>" + r +
+          "</b> is <b>" + bus + " min</b> out. <b>" + pick.nm + "</b> is " + pick.walk +
+          " min from here and it is indoors.";
+        return;
+      }
+      document.body.classList.add("v-cover");
+      $("v").textContent = "COVER";
+      $("why").innerHTML = "Rain in <b>" + rainIn + " min</b> and the <b>" + r +
+        "</b> is <b>" + bus + " min</b> out. Nothing indoors is closer - wait under the canopy.";
+      return;
+    }
+
+    $("v").textContent = "WAIT";
+    if(r === null){
+      $("why").innerHTML = "No vehicle reported yet. " +
+        (rainIn === null ? "At least it is dry." : "Rain in <b>" + rainIn + " min</b>.");
+    } else if(rainIn === null){
+      $("why").innerHTML = "The <b>" + r + "</b> is <b>" + bus +
+        " min</b> away and the next 8 hours look dry.";
+    } else {
+      $("why").innerHTML = "The <b>" + r + "</b> is <b>" + bus +
+        " min</b> away and rain is <b>" + rainIn +
+        " min</b> off. You will be on board before it starts.";
+    }
+  }
+
+  function render(){ decide(); drawChart(); }
+
+  function setLive(on, label){
+    live = on;
+    var e = $("lv");
+    e.className = "lv" + (on ? " on" : "");
+    e.innerHTML = on ? "\u25CF LIVE" : "\u25CB " + (label || "OFFLINE");
+  }
+
+  function tick(){
+    ROUTES.forEach(function(x){
+      if(!tracked[x]) return;
+      eta[x]--;
+      if(eta[x] <= 0) eta[x] = Math.max(4, SEED[x] + Math.floor(Math.random()*5) - 2);
+    });
+    decide();
+  }
+  function tickMs(){ return (live && !demoSpeed) ? REAL_MIN_MS : DEMO_MIN_MS; }
+  function restartTick(){ clearInterval(tickHandle); tickHandle = setInterval(tick, tickMs()); }
+
+  function pollBus(){
+    fetch("/api/septa", { cache:"no-store" })
+      .then(function(res){ if(!res.ok) throw new Error(res.status); return res.json(); })
+      .then(function(d){
+        (d.arrivals || []).forEach(function(a){
+          if(ROUTES.indexOf(a.route) < 0) return;
+          if(a.destination) dest[a.route] = a.destination;
+          if(typeof a.minutes === "number"){
+            tracked[a.route] = true;
+            eta[a.route] = Math.max(1, a.minutes);
+            lateMin[a.route] = typeof a.late === "number" ? a.late : null;
+          } else {
+            tracked[a.route] = false; lateMin[a.route] = null;
+          }
+        });
+        setLive(true); decide();
+      })
+      .catch(function(){ setLive(false, "demo data"); })
+      .then(function(){ restartTick(); setTimeout(pollBus, POLL_MS); });
+  }
+
+  function pollWx(){
+    fetch("/api/weather", { cache:"no-store" })
+      .then(function(res){ if(!res.ok) throw new Error(res.status); return res.json(); })
+      .then(function(d){
+        if(d.error) throw new Error(d.error);
+        wx = d; wxOk = true;
+        THRESH = typeof d.threshold === "number" ? d.threshold : 40;
+        $("src").textContent = "Blue = " + THRESH + "%+";
+        if(d.now){
+          $("temp").innerHTML = d.now.temp + "<sup>&deg;" + (d.now.unit || "F") + "</sup>";
+          $("cond").textContent = d.now.short || "";
+          $("wind").textContent = d.now.wind ? "Wind " + d.now.wind : "";
+        }
+      })
+      .catch(function(){
+        wxOk = false;
+        $("cond").textContent = "Forecast unavailable";
+        $("src").textContent = "forecast offline";
+      })
+      .then(function(){ render(); setTimeout(pollWx, WX_MS); });
+  }
+
+  render(); restartTick(); pollBus(); pollWx();
+
+  // Recording helpers:
+  //   d = demo speed   w = cycle the weather story   r = reset
+  var fake = 0;
+  document.addEventListener("keydown", function(e){
+    if(e.key === "d"){ demoSpeed = !demoSpeed; restartTick(); }
+    if(e.key === "r"){
+      ROUTES.forEach(function(x){ eta[x] = SEED[x]; tracked[x] = true; lateMin[x] = null; });
+      render();
+    }
+    if(e.key === "w"){
+      // Steps through dry -> rain coming -> raining now, so all three verdicts
+      // can be filmed without waiting for Philadelphia weather to cooperate.
+      fake = (fake + 1) % 3;
+      if(!wx || !wx.periods) return;
+      if(fake === 0){
+        wx.nowRaining = false; wx.rainInMinutes = null;
+        wx.periods.forEach(function(p){ p.pop = Math.min(p.pop, 15); });
+      } else if(fake === 1){
+        wx.nowRaining = false; wx.rainInMinutes = 22;
+        wx.periods.forEach(function(p, i){ p.pop = i === 0 ? 10 : (i < 4 ? 70 : 45); });
+        eta["21"] = 26; tracked["21"] = true;
+      } else {
+        wx.nowRaining = true; wx.rainInMinutes = 0;
+        wx.periods.forEach(function(p, i){ p.pop = i < 5 ? 85 : 40; });
+        eta["21"] = 8;
+      }
+      render();
+    }
+  });
+})();
+</script>
