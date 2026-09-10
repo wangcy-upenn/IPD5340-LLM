@@ -1,0 +1,308 @@
+<meta charset="utf-8">
+<title>Wait Radius</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600;700&display=swap">
+<style>
+  :root{
+    --amber:#F2B233; --red:#E33B3B; --dim:#59616D; --chip:#343A43;
+  }
+  *{ box-sizing:border-box; margin:0; }
+  html,body{ height:100%; }
+  body{
+    background:#0A0A0B; color:#fff; font-family:"Barlow",system-ui,sans-serif;
+    display:flex; justify-content:center; overflow:hidden;
+    -webkit-font-smoothing:antialiased; user-select:none; -webkit-user-select:none;
+  }
+  #unit{ width:100%; max-width:540px; height:100%; display:flex; flex-direction:column;
+         background:#000; position:relative; }
+
+  .head{ flex:0 0 auto; display:flex; align-items:baseline; gap:10px;
+         padding:clamp(12px,2.4vh,22px) clamp(14px,4vw,24px) 0; }
+  .head .nm{ font-family:"Barlow Condensed",sans-serif; font-weight:600;
+             font-size:clamp(15px,2vh,20px); letter-spacing:.13em;
+             text-transform:uppercase; color:#C6CCD6; }
+  .head .lv{ margin-left:auto; font-family:"Barlow Condensed",sans-serif; font-weight:600;
+             font-size:clamp(10px,1.3vh,13px); letter-spacing:.13em;
+             text-transform:uppercase; color:#6E7686; }
+  .head .lv.on{ color:#7BE0A0; }
+
+  .radar{ flex:1 1 auto; min-height:0; position:relative; display:grid; place-items:center; }
+  .radar svg{ width:100%; height:100%; }
+
+  /* Concentric minute rings - the ruler the whole screen is read against. */
+  .tring{ fill:none; stroke:#1B1F25; stroke-width:1; stroke-dasharray:2 7; }
+  .tlab{ fill:#3D444E; font-family:"Barlow Condensed",sans-serif; font-weight:600;
+         font-size:12px; letter-spacing:.08em; text-anchor:middle; }
+  .spoke{ stroke:#15181D; stroke-width:1.5; }
+
+  .hub{ fill:#fff; }
+  .halo{ fill:none; stroke:#fff; stroke-width:1.5; opacity:.5; }
+
+  /* Each bus rides its own spoke. transform is animated, so it visibly closes in.
+     Route number and minutes sit inside one box, so nothing overhangs the edge. */
+  .bus{ transition:transform 1.1s cubic-bezier(.34,.02,.2,1); }
+  .bus .box{ fill:var(--chip); rx:9; }
+  .bus .num{ fill:#AEB6C2; font-family:"Barlow Condensed",sans-serif; font-weight:700;
+             font-size:25px; text-anchor:middle; }
+  .bus .min{ fill:#6E7686; font-family:"Barlow Condensed",sans-serif; font-weight:600;
+             font-size:13.5px; letter-spacing:.06em; text-anchor:middle; }
+
+  .bus.next .box{ fill:var(--amber); }
+  .bus.next .num{ fill:#101216; }
+  .bus.next .min{ fill:#7A5809; }
+  .bus.gone .box{ fill:#1A1D22; }
+  .bus.gone .num{ fill:#464D57; }
+  .bus.gone .min{ fill:#3D444E; }
+
+  .dpill{ fill:var(--red); rx:8; }
+  .dtext{ fill:#fff; font-family:"Barlow Condensed",sans-serif; font-weight:700;
+          font-size:13px; letter-spacing:.07em; text-anchor:middle; }
+
+  .foot{ flex:0 0 auto; text-align:center; padding:0 clamp(14px,4vw,24px) clamp(14px,2.6vh,24px);
+         font-family:"Barlow Condensed",sans-serif; font-weight:500;
+         font-size:clamp(10px,1.3vh,13px); letter-spacing:.15em;
+         text-transform:uppercase; color:#454C57; line-height:1.5; }
+
+  /* Arrival takes the whole screen - one clear response, readable from across the street. */
+  #flash{ position:absolute; inset:0; display:grid; place-items:center; pointer-events:none;
+          background:#000; opacity:0; transition:opacity .25s ease; }
+  #flash.on{ opacity:1; }
+  #flash .inner{ text-align:center; }
+  #flash .r{ font-family:"Barlow Condensed",sans-serif; font-weight:700; color:var(--amber);
+             font-size:clamp(120px,26vh,240px); line-height:.85; }
+  #flash .w{ font-family:"Barlow Condensed",sans-serif; font-weight:600; color:#fff;
+             font-size:clamp(24px,5vh,46px); letter-spacing:.24em; text-transform:uppercase; }
+  body.arriving #unit{ animation:pulse 1s ease-in-out infinite; }
+  @keyframes pulse{ 0%,100%{ background:#000; } 50%{ background:#191308; } }
+</style>
+
+<div id="unit">
+  <div class="head">
+    <div class="nm">Walnut St &middot; 11th St</div>
+    <div class="lv" id="lv">&#9675; connecting</div>
+  </div>
+
+  <div class="radar">
+    <svg id="svg" viewBox="0 0 420 420" preserveAspectRatio="xMidYMid meet"
+         aria-label="Buses closing in on this stop"></svg>
+    <div id="flash"><div class="inner">
+      <div class="r" id="fr">21</div><div class="w">is here</div>
+    </div></div>
+  </div>
+
+  <div class="foot">Each bus moves inward as it gets closer<br>The centre is this stop</div>
+</div>
+
+<script>
+(function(){
+  var NS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("svg");
+  var $ = function(id){ return document.getElementById(id); };
+
+  var CX = 210, CY = 210, VIEW = 420;
+  var RMAX = 158;      // 20 minutes out
+  var TMAX = 20;       // minutes at the outer ring
+  var BW = 50, BH = 42; // bus box
+  var ARRIVE_MS = 5200;
+
+  // One spoke per route, at a fixed compass angle, so a rider learns where to
+  // look for "their" bus and only has to read one thing: how far in it is.
+  var ROUTES = [
+    { id:"9",  ang:-90, dest:"Andorra" },
+    { id:"12", ang:0,   dest:"50th-Woodland" },
+    { id:"21", ang:90,  dest:"69th St Transit Center" },
+    { id:"42", ang:180, dest:"Wycombe" }
+  ];
+  var SEED = { "9":16, "12":9, "21":12, "42":7 };
+
+  var eta = { "9":16, "12":9, "21":12, "42":7 };
+  var late = { "9":null, "12":null, "21":null, "42":null };
+  var tracked = { "9":true, "12":true, "21":true, "42":true };
+  var arriving = null, live = false, demoSpeed = false, tickHandle = null;
+  var POLL_MS = 20000, DEMO_MIN_MS = 2000, REAL_MIN_MS = 60000;
+  var nodes = {};
+
+  function el(name, attrs, cls){
+    var e = document.createElementNS(NS, name);
+    if(cls) e.setAttribute("class", cls);
+    for(var k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+  function rad(deg){ return deg * Math.PI / 180; }
+
+  // ---- the fixed backdrop: minute rings, spokes, and the stop itself -------
+  [5, 10, 15, 20].forEach(function(m){
+    var r = m / TMAX * RMAX;
+    svg.appendChild(el("circle", { cx:CX, cy:CY, r:r }, "tring"));
+    // Labels ride the upper-left diagonal, where no spoke can collide with them.
+    var a = rad(-135);
+    var lab = el("text", { x:CX + r*Math.cos(a), y:CY + r*Math.sin(a) + 4 }, "tlab");
+    lab.textContent = m === 20 ? "20 MIN" : String(m);
+    svg.appendChild(lab);
+  });
+
+  ROUTES.forEach(function(rt){
+    var a = rad(rt.ang);
+    svg.appendChild(el("line", {
+      x1:CX, y1:CY, x2:CX + (RMAX + 10)*Math.cos(a), y2:CY + (RMAX + 10)*Math.sin(a)
+    }, "spoke"));
+  });
+
+  svg.appendChild(el("circle", { cx:CX, cy:CY, r:17 }, "halo"));
+  svg.appendChild(el("circle", { cx:CX, cy:CY, r:6.5 }, "hub"));
+
+  // ---- one movable group per route ----------------------------------------
+  ROUTES.forEach(function(rt){
+    var g = el("g", {}, "bus");
+
+    var box = el("rect", { x:-BW/2, y:-BH/2, width:BW, height:BH }, "box");
+    var num = el("text", { x:0, y:3 }, "num");
+    num.textContent = rt.id;
+    var min = el("text", { x:0, y:17 }, "min");
+
+    // The delay pill hangs below the box, except on the bottom spoke where
+    // that would fall off the canvas - there it sits above instead.
+    var py = rt.ang === 90 ? -(BH/2 + 23) : (BH/2 + 6);
+    var dp = el("rect", { x:-40, y:py, width:80, height:17, opacity:0 }, "dpill");
+    var dt = el("text", { x:0, y:py + 13, opacity:0 }, "dtext");
+
+    g.appendChild(dp); g.appendChild(dt);
+    g.appendChild(box); g.appendChild(num); g.appendChild(min);
+    svg.appendChild(g);
+
+    nodes[rt.id] = { g:g, min:min, dp:dp, dt:dt, ang:rt.ang };
+  });
+
+  // ---- rendering -----------------------------------------------------------
+  // The box is placed so its INNER EDGE sits on the minute ring, not its
+  // centre. That way a 5-minute bus reads as 5 minutes out and never covers
+  // the stop marker - the box only reaches the centre when the bus arrives.
+  function radiusFor(id, ang){
+    var ringR;
+    if(!tracked[id]) ringR = RMAX;
+    else ringR = Math.max(0, Math.min(TMAX, eta[id])) / TMAX * RMAX;
+    var half = (ang === 0 || ang === 180) ? BW / 2 : BH / 2;
+    return ringR + half;
+  }
+
+  function draw(){
+    // The soonest tracked bus is the one the screen is really about.
+    var next = null;
+    ROUTES.forEach(function(rt){
+      if(!tracked[rt.id]) return;
+      if(next === null || eta[rt.id] < eta[next]) next = rt.id;
+    });
+
+    ROUTES.forEach(function(rt){
+      var n = nodes[rt.id];
+      var a = rad(n.ang), r = radiusFor(rt.id, n.ang);
+      var bx = CX + r*Math.cos(a), by = CY + r*Math.sin(a);
+      n.g.setAttribute("transform", "translate(" + bx.toFixed(1) + "," + by.toFixed(1) + ")");
+
+      n.g.classList.toggle("next", rt.id === next);
+      n.g.classList.toggle("gone", !tracked[rt.id]);
+      n.min.textContent = tracked[rt.id] ? eta[rt.id] + " min" : "--";
+
+      var lateMin = late[rt.id];
+      var showDelay = tracked[rt.id] && typeof lateMin === "number" && lateMin >= 2;
+      if(showDelay){
+        n.dt.textContent = "Delayed " + lateMin + " min";
+        n.dt.setAttribute("opacity", 1);
+        // Size the red pill to whatever the text actually measures, then slide
+        // it sideways if centring it would push it off the canvas.
+        var w = n.dt.getComputedTextLength() + 16;
+        var px = -w / 2;
+        if(bx + px < 4) px = 4 - bx;
+        if(bx + px + w > VIEW - 4) px = VIEW - 4 - w - bx;
+        n.dp.setAttribute("x", px);
+        n.dp.setAttribute("width", w);
+        n.dp.setAttribute("opacity", 1);
+        n.dt.setAttribute("x", px + w / 2);
+      } else {
+        n.dt.setAttribute("opacity", 0);
+        n.dp.setAttribute("opacity", 0);
+      }
+    });
+  }
+
+  function setLive(on, label){
+    live = on;
+    var e = $("lv");
+    e.className = "lv" + (on ? " on" : "");
+    e.innerHTML = on ? "\u25CF LIVE" : "\u25CB " + (label || "OFFLINE");
+  }
+
+  function tick(){
+    if(arriving) return;
+    ROUTES.forEach(function(rt){
+      if(!tracked[rt.id]) return;
+      eta[rt.id]--;
+      if(eta[rt.id] <= 0) startArriving(rt.id);
+    });
+    draw();
+  }
+  function tickMs(){ return (live && !demoSpeed) ? REAL_MIN_MS : DEMO_MIN_MS; }
+  function restartTick(){ clearInterval(tickHandle); tickHandle = setInterval(tick, tickMs()); }
+
+  function startArriving(r){
+    arriving = r;
+    eta[r] = 0;
+    draw();
+    $("fr").textContent = r;
+    $("flash").classList.add("on");
+    document.body.classList.add("arriving");
+    setTimeout(function(){
+      $("flash").classList.remove("on");
+      document.body.classList.remove("arriving");
+      eta[r] = Math.max(4, SEED[r] + Math.floor(Math.random()*5) - 2);
+      arriving = null;
+      draw();
+    }, ARRIVE_MS);
+  }
+
+  // Same serverless function as prototype A - identical data, a different reading of it.
+  function poll(){
+    fetch("/api/septa", { cache:"no-store" })
+      .then(function(res){ if(!res.ok) throw new Error(res.status); return res.json(); })
+      .then(function(d){
+        (d.arrivals || []).forEach(function(a){
+          if(!nodes[a.route]) return;
+          if(typeof a.minutes === "number"){
+            tracked[a.route] = true;
+            eta[a.route] = Math.max(1, a.minutes);
+            late[a.route] = typeof a.late === "number" ? a.late : null;
+            if(!arriving && a.minutes <= 1) startArriving(a.route);
+          } else {
+            // Nothing on this route right now. Park it outside the last ring
+            // rather than drawing a bus that does not exist.
+            tracked[a.route] = false;
+            late[a.route] = null;
+          }
+        });
+        setLive(true);
+        draw();
+      })
+      .catch(function(){ setLive(false, "demo data"); })
+      .then(function(){ restartTick(); setTimeout(poll, POLL_MS); });
+  }
+
+  draw();
+  restartTick();
+  poll();
+
+  // Recording helpers:
+  //   b = bring the 21 in now   d = demo speed   l = fake a delay on the 42   r = reset
+  document.addEventListener("keydown", function(e){
+    if(e.key === "b" && !arriving) startArriving("21");
+    if(e.key === "d"){ demoSpeed = !demoSpeed; restartTick(); }
+    if(e.key === "l"){ late["42"] = (typeof late["42"] === "number" && late["42"] >= 2) ? 0 : 6; draw(); }
+    if(e.key === "r"){
+      ROUTES.forEach(function(rt){
+        eta[rt.id] = SEED[rt.id]; tracked[rt.id] = true; late[rt.id] = null;
+      });
+      draw();
+    }
+  });
+})();
+</script>
